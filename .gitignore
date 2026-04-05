@@ -1,0 +1,4 @@
+*.pyc
+*.svg
+*.gcode
+.python-version

@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<inkscape-extension xmlns="http://www.inkscape.org/namespace/inkscape/extension">
+  <name>Spherebot G-Code Output</name>
+  <id>spherebot.output</id>
+  <dependency type="extension">org.inkscape.output.svg.inkscape</dependency>
+  <dependency type="executable" location="extensions">spherebot.py</dependency>
+  <param name="tab" type="notebook">
+    <page name="plotter_setup" gui-text="Setup">
+      <param name="pen_up_angle" type="float" min="0.0" max="180.0" gui-text="Pen Up Angle">5</param>
+      <param name="pen_down_angle" type="float" min="0.0" max="180.0" gui-text="Pen Down Angle">50</param>
+      <param name="start_delay" type="float" min="0.0" max="1000.0" gui-text="Delay after pen-down command before movement in milliseconds.">150.0</param>
+      <param name="stop_delay" type="float" min="0.0" max="1000.0" gui-text="Delay after pen-up command before movement in milliseconds.">150.0</param>
+      <param name="xy_feedrate" type="float" min="100.0" max="20000.0" gui-text="XY axes feedrate in mm/min.">8500.0</param>
+      <param name="z_feedrate" type="float" min="0.0" max="1000.0" gui-text="Z-axis feedrate in mm/min.">150.0</param>
+      <param name="z_height" type="float" min="0.0" max="110.0" gui-text="Z-axis print height in mm.">0.0</param>
+      <param name="finished_height" type="float" min="0.0" max="110.0" gui-text="Z-axis height after printing in mm.">0.0</param>
+    </page>
+    <page name="pen_reg" gui-text="Registration">
+      <label>Pen Registration Check
+
+This feature adds a quick pen-down/pen-up at the beginning of a plot so you can check whether the pen hits the egg.
+
+When plotting, sender.py will pause for [enter].</label>
+      <param name="register_pen" type="bool" gui-text="Use Pen Registration Check">true</param>
+    </page>
+    <page name="homing" gui-text="Homing">
+      <label>Where do you like to set your platform when you start a plot?
+
+Some examples:
+- X = 0, Y = 0 if it starts with pen centered over the egg.
+
+Note: Double-check the orientation of your axes when changing these values!</label>
+      <param name="x_home" type="float" min="-100.00" max="100.00" gui-text="Pen starts at X value:">0.00</param>
+      <param name="y_home" type="float" min="-100.00" max="100.00" gui-text="Pen starts at Y value:">0.00</param>
+    </page>
+    <page name="pen_changes" gui-text="Pen Changes">
+      <param name="pause_on_layer_change" type="bool" gui-text="Pause on layer changes?">true</param>
+    </page>
+    <page name="help" gui-text="Help">
+      <label>SphereBot G-Code Output.
+
+- Text automagically converted to paths!
+- Curves are approximated with line segments.
+
+More Info: http://github.com/firebovine/inkscape-spherebot</label>
+    </page>
+  </param>
+  <output>
+    <extension>.gcode</extension>
+    <mimetype>text/plain</mimetype>
+    <filetypename>Spherebot G-code (*.gcode)</filetypename>
+    <filetypetooltip>Export drawing as Spherebot-compatible G-code</filetypetooltip>
+    <dataloss>true</dataloss>
+  </output>
+  <script>
+    <command location="extensions" interpreter="python">spherebot.py</command>
+    <helper_extension>org.inkscape.output.svg.inkscape</helper_extension>
+  </script>
+</inkscape-extension>

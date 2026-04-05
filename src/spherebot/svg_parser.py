@@ -1,63 +1,10 @@
-import inkex, cubicsuperpath, simplepath, simplestyle, cspsubdiv
-from simpletransform import *
-from bezmisc import *
-import entities
+import inkex
+from inkex.transforms import Transform
+from inkex.bezier import cspsubdiv
+from . import entities
 from math import radians
 import sys, pprint
 
-def parseLengthWithUnits( str ):
-  '''
-  Parse an SVG value which may or may not have units attached
-  This version is greatly simplified in that it only allows: no units,
-  units of px, and units of %.  Everything else, it returns None for.
-  There is a more general routine to consider in scour.py if more
-  generality is ever needed.
-  '''
-  u = 'px'
-  s = str.strip()
-  if s[-2:] == 'px':
-    s = s[:-2]
-  elif s[-1:] == '%':
-    u = '%'
-    s = s[:-1]
-  try:
-    v = float( s )
-  except:
-    return None, None
-  return v, u
-
-def subdivideCubicPath( sp, flat, i=1 ):
-  """
-  Break up a bezier curve into smaller curves, each of which
-  is approximately a straight line within a given tolerance
-  (the "smoothness" defined by [flat]).
-
-  This is a modified version of cspsubdiv.cspsubdiv(). I rewrote the recursive
-  call because it caused recursion-depth errors on complicated line segments.
-  """
-
-  while True:
-    while True:
-      if i >= len( sp ):
-        return
-
-      p0 = sp[i - 1][1]
-      p1 = sp[i - 1][2]
-      p2 = sp[i][0]
-      p3 = sp[i][1]
-
-      b = ( p0, p1, p2, p3 )
-
-      if cspsubdiv.maxdist( b ) > flat:
-        break
-
-      i += 1
-
-    one, two = beziersplitatt( b, 0.5 )
-    sp[i - 1][2] = one[1]
-    sp[i][0] = two[2]
-    p = [one[2], one[3], two[1]]
-    sp[i:1] = [p]
 
 class SvgIgnoredEntity:
   def load(self,node,mat):
@@ -65,27 +12,14 @@ class SvgIgnoredEntity:
   def __str__(self):
     return "Ignored '%s' tag" % self.tag
   def get_gcode(self,context):
-    #context.codes.append("(" + str(self) + ")")
-    #context.codes.append("")
     return
 
 class SvgPath(entities.PolyLine):
   def load(self, node, mat):
-    d = node.get('d')
-    if len(simplepath.parsePath(d)) == 0:
-      return
-    p = cubicsuperpath.parsePath(d)
-    applyTransformToPath(mat, p)
-
-    # p is now a list of lists of cubic beziers [ctrl p1, ctrl p2, endpoint]
-    # where the start-point is the last point in the previous segment
-    self.segments = []
-    for sp in p:
-      points = []
-      subdivideCubicPath(sp,0.2)  # TODO: smoothness preference
-      for csp in sp:
-        points.append((csp[1][0],csp[1][1]))
-      self.segments.append(points)
+    transformed_path = node.path.to_absolute().transform(mat)
+    p = transformed_path.to_superpath()
+    cspsubdiv(p, flat=0.2)
+    self.segments = [[tuple(csp[1]) for csp in sp] for sp in p if sp]
 
   def new_path_from_node(self, node):
     newpath = inkex.etree.Element(inkex.addNS('path','svg'))
@@ -197,45 +131,19 @@ class SvgParser:
     'text': SvgText
   }
 
-  def __init__(self, svg, pause_on_layer_change='false'):
+  def __init__(self, svg, pause_on_layer_change=False):
     self.svg = svg
     self.pause_on_layer_change = pause_on_layer_change
     self.entities = []
 
-  def getLength( self, name, default ):
-    '''
-    Get the <svg> attribute with name "name" and default value "default"
-    Parse the attribute into a value and associated units.  Then, accept
-    no units (''), units of pixels ('px'), and units of percentage ('%').
-    '''
-    str = self.svg.get( name )
-    if str:
-      v, u = parseLengthWithUnits( str )
-      if not v:
-        # Couldn't parse the value
-        return None
-      elif ( u == '' ) or ( u == 'px' ):
-        return v
-      elif u == '%':
-        return float( default ) * v / 100.0
-      else:
-        # Unsupported units
-        return None
-    else:
-      # No width specified; assume the default value
-      return float( default )
-
   def parse(self):
-    # 0.28222 scale determined by comparing pixels-per-mm in a default Inkscape file.
-    # No scale. I want GCode to be in px. We will map 1:1 px to step.
-    svg_scale_factor = 1.0 # was 0.28222
-    self.svgWidth = self.getLength('width', 354) * svg_scale_factor
-    self.svgHeight = self.getLength('height', 354) * svg_scale_factor
-    self.recursivelyTraverseSvg(self.svg, [[svg_scale_factor, 0.0, -(self.svgWidth/2.0)], [0.0, -svg_scale_factor, (self.svgHeight/2.0)]])
+    self.svgWidth = self.svg.viewport_width
+    self.svgHeight = self.svg.viewport_height
+    initial_transform = Transform().add_scale(1,-1).add_translate(-(self.svgWidth / 2.0), -(self.svgHeight / 2.0))
+    self.recursivelyTraverseSvg(self.svg, initial_transform)
 
-  # TODO: center this thing
   def recursivelyTraverseSvg(self, nodeList, 
-                             matCurrent = [[1.0, 0.0, 0.0], [0.0, -1.0, 0.0]],
+                             matCurrent,
                              parent_visibility = 'visible'):
     """
     Recursively traverse the svg file to plot out all of the
@@ -258,13 +166,12 @@ class SvgParser:
       if v == 'hidden' or v == 'collapse':
         pass
 
-      # first apply the current matrix transform to this node's transform
-      matNew = composeTransform(matCurrent, parseTransform(node.get("transform")))
+      matNew = matCurrent @ node.transform
 
       if node.tag == inkex.addNS('g','svg') or node.tag == 'g':
         if (node.get(inkex.addNS('groupmode','inkscape')) == 'layer'):
           layer_name = node.get(inkex.addNS('label','inkscape'))
-          if(self.pause_on_layer_change == 'true'):
+          if self.pause_on_layer_change:
             self.entities.append(SvgLayerChange(layer_name))
         self.recursivelyTraverseSvg(node, matNew, parent_visibility = v)
       elif node.tag == inkex.addNS('use','svg') or node.tag == 'use':
@@ -276,9 +183,8 @@ class SvgParser:
           if refnode:
             x = float(node.get('x','0'))
             y = float(node.get('y','0'))
-            # Note: the transform has already been applied
             if (x!=0) or (y!=0):
-              matNew2 = composeTransform(matNew,parseTransform('translate(%f,%f)' % (x,y)))
+              matNew2 = matNew @ Transform(translate=(x, y))
             else:
               matNew2 = matNew
             v = node.get('visibility',v)
@@ -287,7 +193,7 @@ class SvgParser:
             pass
         else:
           pass
-      elif not isinstance(node.tag, basestring):
+      elif not isinstance(node.tag, str):
         pass
       else:
         entity = self.make_entity(node, matNew)
@@ -295,7 +201,7 @@ class SvgParser:
           inkex.errormsg('Warning: unable to draw object, please convert it to a path first.')
 
   def make_entity(self,node,mat):
-    for nodetype in SvgParser.entity_map.keys():
+    for nodetype in list(SvgParser.entity_map.keys()):
       tag = nodetype
       ns = 'svg'
       if(type(tag) is tuple):

@@ -7,6 +7,8 @@ It generates the correct g-code for use with that firmware to pause on pen chang
 It also adds a neat option which adds deceleration to the pen movements after a certain position. This allows you to "softly" contact the egg,
 which I found yields better results, especially when doing tons of stippling type moves.
 
+2026 Update - Now works with modern Inkscape versions! Woohoo!
+
 
 SphereBot G-Code Output for Inkscape
 ===========================================
@@ -21,7 +23,7 @@ Original Author's Website: [http://github.com/martymcguire/inkscape-unicorn](htt
 Credits
 =======
 
-* Firebovine made some modifications to work with SphereBot, with firebovine's 1:1 firmware.
+* Firebovine made some modifications to work with SphereBot, with firebovine's 1:1 firmware
 * Marty McGuire pulled this all together into an Inkscape extension.
 * [Inkscape](http://www.inkscape.org/) is an awesome open source vector graphics app.
 * [Scribbles](https://github.com/makerbot/Makerbot/tree/master/Unicorn/Scribbles%20Scripts) is the original DXF-to-Unicorn Python script.
@@ -59,4 +61,4 @@ Usage
 
 TODOs
 =====
-* I ain't got nothin' left to do here, seems to work for what I need it for.
+* Many code paths are dead and can be simplified!
